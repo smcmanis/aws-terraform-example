@@ -95,3 +95,100 @@ resource "aws_instance" "LAMP-sample-instance" {
 
   subnet_id = module.vpc.public_subnets[0]
 }
+
+resource "aws_lb_target_group" "app-tg" {
+  name = "app-lb-tg"
+  port = 80
+  protocol = "HTTP"
+  vpc_id = module.vpc.vpc_id
+}
+
+resource "aws_elb" "public-elb" {
+  name = "public-internet-facing"
+  subnets = module.vpc.public_subnets
+  security_groups = [aws_security_group.public-facing-sg.id]
+
+  listener {
+    instance_port     = 8000
+    instance_protocol = "http"
+    lb_port           = 80
+    lb_protocol       = "http"
+  }
+ 
+  tags = {
+    Name = "Managed by Terraform"
+  }
+}
+
+resource "aws_launch_template" "app-launch-template" {
+ name = "app-launch-template"
+ image_id = aws_instance.LAMP-sample-instance.ami
+ instance_type = "t2.micro"
+}
+
+resource "aws_autoscaling_group" "app-asg" {
+  name = "app-asg"
+  desired_capacity = 2
+  min_size = 2
+  max_size = 8
+  vpc_zone_identifier = module.vpc.public_subnets
+  target_group_arns = [aws_lb_target_group.app-tg.arn]
+  launch_template {
+    id = aws_launch_template.app-launch-template.id
+    version = "$Latest"
+  }
+}
+
+
+resource "aws_autoscaling_policy" "app-scale-up" {
+  name                   = "app-scale-up"
+  scaling_adjustment     = 1
+  adjustment_type        = "ChangeInCapacity"
+  cooldown               = 300
+  autoscaling_group_name = aws_autoscaling_group.app-asg.name
+}
+
+resource "aws_autoscaling_policy" "app-scale-down" {
+  name                   = "app-scale-down"
+  scaling_adjustment     = -1
+  adjustment_type        = "ChangeInCapacity"
+  cooldown               = 300
+  autoscaling_group_name = aws_autoscaling_group.app-asg.name
+}
+
+
+resource "aws_cloudwatch_metric_alarm" "network-out-high" {
+  alarm_name          = "network-out-high"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "NetworkOut"
+  namespace           = "AWS/EC2"
+  period              = "120"
+  statistic           = "Average"
+  threshold           = "60"
+
+  dimensions = {
+    AutoScalingGroupName = aws_autoscaling_group.app-asg.name
+  }
+
+  alarm_description = "This metric monitors average network out for the instance"
+  alarm_actions = [aws_autoscaling_policy.app-scale-up.arn]
+} 
+
+resource "aws_cloudwatch_metric_alarm" "network-out-low" {
+  alarm_name          = "network-out-low"
+  comparison_operator = "LessThanOrEqualToThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "NetworkOut"
+  namespace           = "AWS/EC2"
+  period              = "120"
+  statistic           = "Average"
+  threshold           = "30"
+
+  dimensions = {
+    AutoScalingGroupName = aws_autoscaling_group.app-asg.name
+  }
+
+  alarm_description = "This metric monitors average network out for the instance"
+  alarm_actions = [aws_autoscaling_policy.app-scale-down.arn]
+} 
