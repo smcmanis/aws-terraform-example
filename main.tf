@@ -88,3 +88,10 @@ resource "aws_db_instance" "sampledb" {
   db_subnet_group_name = "${local.env}-vpc"
   vpc_security_group_ids = [aws_security_group.public-facing-sg.id]
 }
+
+resource "aws_instance" "LAMP-sample-instance" {
+  ami = "ami-03e843d780a15a2d6" # custom AMI created manually
+  instance_type = "t2.micro"
+
+  subnet_id = module.vpc.public_subnets[0]
+}
