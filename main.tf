@@ -73,3 +73,18 @@ resource "aws_security_group" "public-facing-sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 }
+
+resource "aws_db_instance" "sampledb" {
+  allocated_storage    = 20
+  max_allocated_storage = 1000
+  engine               = "mysql"
+  engine_version       = "8.0.28"
+  instance_class       = "db.t2.micro"
+  username             = "master"
+  password             = "foobarbaz"
+  parameter_group_name = "default.mysql8.0"
+  skip_final_snapshot  = true
+  port                 = 3306
+  db_subnet_group_name = "${local.env}-vpc"
+  vpc_security_group_ids = [aws_security_group.public-facing-sg.id]
+}
