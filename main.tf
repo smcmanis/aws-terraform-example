@@ -73,6 +73,29 @@ resource "aws_security_group" "public-facing-sg" {
   }
 }
 
+resource "aws_security_group" "rds-sg" {
+  name            = "rds-sg"
+  description     = "Managed by terraform"
+  vpc_id          = module.vpc.vpc_id 
+
+  egress {
+    description     = "Outbound traffic to any destination"
+    from_port       = 0
+    to_port         = 65535
+    protocol        = "all"
+    cidr_blocks     = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "Allow database server connections on port 3306"
+    from_port   = 3306
+    to_port     = 3306
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+
 resource "aws_db_instance" "sampledb" {
   allocated_storage    = 20
   max_allocated_storage = 1000
@@ -85,7 +108,7 @@ resource "aws_db_instance" "sampledb" {
   skip_final_snapshot  = true
   port                 = 3306
   db_subnet_group_name = "${local.env}-vpc"
-  vpc_security_group_ids = [aws_security_group.public-facing-sg.id]
+  vpc_security_group_ids = [aws_security_group.rds-sg.id]
 }
 
 resource "aws_instance" "LAMP-sample-instance" {
